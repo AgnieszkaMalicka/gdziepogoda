@@ -1,3 +1,6 @@
+let loader;
+let markersGrid;
+
 // settings map
 let mymap = L.map('mapid').setView([51.305, 18.09], 13);
 
@@ -13,114 +16,151 @@ L.tileLayer('https://api.mapbox.com/styles/v1/{id}/tiles/{z}/{x}/{y}?access_toke
     zoomOffset: -1
 }).addTo(mymap);
 
+mymap.on('click', onMapClick);
+
 function onMapClick(e) {
+    //loader    
+    let centerPoint = mymap.getCenter();
+
+    let myIcon = L.icon({
+        iconUrl: '../images/45.gif',
+        iconSize: [64, 64],
+    });
+    loader = L.marker([centerPoint.lat, centerPoint.lng], {
+        icon: myIcon
+    }).addTo(mymap);
+    if (markersGrid != undefined) {
+        mymap.removeLayer(markersGrid);
+    }
+    mymap.addLayer(loader);
+
+    // disabled click second time
+    mymap.off('click', onMapClick);
+
     let clickedCoorinates = e.latlng;
-    console.log(e.latlng);
+
     $.ajax({
         url: "/getWeather", //wymagane, gdzie się łączymy
         method: "get", //typ połączenia, domyślnie get
         contentType: 'application/json', //gdy wysyłamy dane czasami chcemy ustawić ich typ
-        dataType: 'html', //typ danych jakich oczekujemy w odpowiedzi
+        dataType: 'json', //typ danych jakich oczekujemy w odpowiedzi
         data: { //dane do wysyłki
             coordinatesLat: clickedCoorinates.lat,
-            coordinatesLng: clickedCoorinates.lng
+            coordinatesLng: clickedCoorinates.lng,
+            action: "open",
+            scope: "all"
         },
         success: function (result) {
-            let obj = JSON.parse(result);
-            let lat = obj['coordinatesLat'];
-            let lng = obj['coordinatesLng'];
-            let temperature = Math.round(obj['temperature']);
-            let icon = obj['icon'];
-            let description = obj['description'];
-            console.log(icon);
-            let iconM;
+            //delete loader when get data from API
+            mymap.removeLayer(loader);
+            // enabled click
+            mymap.on('click', onMapClick);
 
-            switch (icon) {
-                case '01d':
-                    iconUrl = '../images/icons/01d@2x.png';
-                    break;
-                case '02d':
-                    iconUrl = '../images/icons/02d@2x.png';
-                    break;
-                case '03d':
-                    iconUrl = '../images/icons/03d@2x.png';
-                    break;
-                case '04d':
-                    iconUrl = '../images/icons/04d@2x.png';
-                    break;
-                case '09d':
-                    iconUrl = '../images/icons/09d@2x.png';
-                    break;
-                case '10d':
-                    iconUrl = '../images/icons/10d@2x.png';
-                    break;
-                case '11d':
-                    iconUrl = '../images/icons/11d@2x.png';
-                    break;
-                case '13d':
-                    iconUrl = '../images/icons/13d@2x.png';
-                    break;
-                case '50d':
-                    iconUrl = '../images/icons/50d@2x.png';
-                    break;
-                case '01n':
-                    iconUrl = '../images/icons/01n@2x.png';
-                    break;
-                case '02n':
-                    iconUrl = '../images/icons/02n@2x.png';
-                    break;
-                case '03n':
-                    iconUrl = '../images/icons/03n@2x.png';
-                    break;
-                case '04n':
-                    iconUrl = '../images/icons/04n@2x.png';
-                    break;
-                case '09n':
-                    iconUrl = '../images/icons/09n@2x.png';
-                    break;
-                case '10n':
-                    iconUrl = '../images/icons/10n@2x.png';
-                    break;
-                case '11n':
-                    iconUrl = '../images/icons/11n@2x.png';
-                    break;
-                case '13n':
-                    iconUrl = '../images/icons/13n@2x.png';
-                    break;
-                case '50n':
-                    iconUrl = '../images/icons/50n@2x.png';
-                    break;
-                default:
-                    iconUrl = '../images/icons/13n@2x.png';
-            }
+            let lat = result['clicked']['current']['lat'];
+            let lng = result['clicked']['current']['lng'];
 
-            new L.Marker([lat, lng], {
-                    icon: new L.DivIcon({
-                        className: 'clearSkyD',
-                        html: '<img class="leaflet-div-icon" src="' + iconUrl + '" title="' + description + '"/>' +
-                            '<span class="textTemperature">' + temperature + '&deg;C</span>'
-                    })
-                }).addTo(mymap)
-                .on('click', onMarkerClick);
+            //center and zoom map
+            mymap.fitBounds([
+                [lat, lng],
+            ], {
+                maxZoom: 10
+            });
+
+            displayImprovedForecast(result);
+            displayGridMarkers(result['nearest']);
         }
     });
 }
 
-function onMarkerClick(e) {
-    // console.log(e);
-    let clickedCoorinates = e.latlng;
-    console.log(e.latlng);
-    $.ajax({
-            url: "/getWeather", //wymagane, gdzie się łączymy
-            method: "get", //typ połączenia, domyślnie get
-            contentType: 'application/json', //gdy wysyłamy dane czasami chcemy ustawić ich typ
-            dataType: 'html', //typ danych jakich oczekujemy w odpowiedzi
-            data: { //dane do wysyłki
-                coordinatesLat: clickedCoorinates.lat,
-                coordinatesLng: clickedCoorinates.lng
-            },
-            success: function (result) {}
-        }
-    }
+function displayImprovedForecast(result) {
+    let lat = result['clicked']['current']['lat'];
+    let lng = result['clicked']['current']['lng'];
+    let currentWeatherData = result['clicked']['current'];
+    let hourlyWeatherData = result['clicked']['hourly'];
 
-    mymap.on('click', onMapClick);
+    $("#place").html('<p>lat: ' + lat.toFixed(2) + ' lng: ' + lng.toFixed(2) + ' ' + currentWeatherData['city_name'] + '</p>');
+    $("#current_icon_img").prop('src', currentWeatherData['icon']);
+    $("#current_icon_img").prop('title', currentWeatherData['description']);
+
+
+    $.each(currentWeatherData, function (index, element) {
+        let htmlId = "#current_" + index;
+        $(htmlId).html(element);
+    });
+
+    $(".currentForPlace").show();
+    $("#weatherDetailsCurrent").addClass("weatherDetailsSelected");
+    $("#weatherDetailsCurrent").click(function (event) {
+        event.preventDefault();
+        onClickWeatherDetailsCurrent();
+    });
+
+    $(".hourlyForPlace").hide();
+    $("#weatherDetailsHourly").removeClass("weatherDetailsSelected");
+    $("#weatherDetailsHourly").click(function (event) {
+        event.preventDefault();
+        onClickWeatherDetailsHourly();
+    });
+
+    $(".forecast").css("display", "flex");
+    $('.hourlyForPlace').html('');
+    $.each(hourlyWeatherData, function (index, element) {
+        $(".hourlyForPlace").append("<div class='tableRow'><div class='hour'><p>" + element['dt'] + ":00</p></div><div class='icon'><img class='leaflet-div-icon' src='" + element['icon'] + "' title='" + element['description'] + "' /></div><div class='temp_wind'><div class='labels'><p>Temperatura</p><p>Ciśnienie</p><p>Wiatr</p></div><div class='values'><p>" + Math.round(element['temperature']) + "&deg;C</p><p>" + element['pres'] + "hPa</p><p>" + element['wind_spd'] + "m/s</p></div></div><div class='feels_rain'><div class='labels'><p>Odczuwalnie</p><p>Chmury</p><p>Deszcz</p></div><div class='values'><p>" + Math.round(element['app_temp']) + "&deg;C</p><p>" + element['clouds'] + "%</p><p>" + element['precip'] + "mm</p></div></div></div>");
+    });
+}
+
+function displayGridMarkers(grid) {
+    let markersList = [];
+    $.each(grid, function (index, element) {
+        let lat = element['current']['lat'];
+        let lng = element['current']['lng'];
+        let temperature = Math.round(element['current']['temperature']);
+        let iconUrl = element['current']['icon'];
+        let description = element['current']['description'];
+
+        marker = new L.Marker([lat, lng], {
+                icon: new L.DivIcon({
+                    className: 'clearSkyD',
+                    html: '<img class="leaflet-div-icon" src="' + iconUrl + '" title="' + description + '"/>' +
+                        '<span class="textTemperature">' + temperature + '&deg;C</span>'
+                })
+            }).addTo(mymap)
+            .on('click', onMarkerClick);
+        markersList.push(marker);
+    });
+    markersGrid = L.layerGroup(markersList);
+    markersGrid.addTo(mymap);
+}
+
+function onClickWeatherDetailsHourly() {
+    $(".currentForPlace").hide();
+    $(".hourlyForPlace").show();
+    $("#weatherDetailsCurrent").removeClass("weatherDetailsSelected");
+    $("#weatherDetailsHourly").addClass("weatherDetailsSelected");
+}
+
+function onClickWeatherDetailsCurrent() {
+    $(".currentForPlace").show();
+    $(".hourlyForPlace").hide();
+    $("#weatherDetailsCurrent").addClass("weatherDetailsSelected");
+    $("#weatherDetailsHourly").removeClass("weatherDetailsSelected");
+}
+
+function onMarkerClick(e) {
+    let clickedCoorinates = e.latlng;
+    $.ajax({
+        url: "/getWeather", //wymagane, gdzie się łączymy
+        method: "get", //typ połączenia, domyślnie get
+        contentType: 'application/json', //gdy wysyłamy dane czasami chcemy ustawić ich typ
+        dataType: 'json', //typ danych jakich oczekujemy w odpowiedzi
+        data: { //dane do wysyłki
+            coordinatesLat: clickedCoorinates.lat,
+            coordinatesLng: clickedCoorinates.lng,
+            action: "open",
+            scope: "place"
+        },
+        success: function (result) {
+            displayImprovedForecast(result);
+        }
+    });
+}

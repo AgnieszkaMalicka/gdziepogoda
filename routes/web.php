@@ -17,6 +17,6 @@ Route::get('/', function () {
     return view('home');
 });
 
-Route::get('/getWeather', 'HomeController@getWeather')->name('home.getWeather');
+Route::get('/getWeather', 'WeatherController@getWeatherForPlace')->name('weather.getWeatherForPlace');
 
-Route::get('/test', 'HomeController@test')->name('home.test');
+Route::get('/test', 'HomeController@testOpen')->name('home.testZbiorczy');
