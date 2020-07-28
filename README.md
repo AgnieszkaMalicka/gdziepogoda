@@ -21,7 +21,9 @@ The project was aimed at getting to know the Laravel framework and using API. It
 
 ## Features
 
-
+- check weather in choosen place
+- check weather in 100 km radius from choosen place
+- check forecast on 48h in choosen place
 
 ##### To Do:
 - add name clicked place (next API)
